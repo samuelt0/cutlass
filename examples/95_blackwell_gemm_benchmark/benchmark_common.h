@@ -118,6 +118,26 @@ inline std::string tile_scheduler_name() {
     return "Unknown";
 }
 
+template <typename T>
+inline std::string stage_count_name() {
+  if constexpr (std::is_same_v<T, void>)
+    return "AutoCarveout";
+  else if constexpr (cute::is_same_v<T, cute::Int<2>> ||
+                     cute::is_same_v<T, cutlass::gemm::collective::StageCount<2>>)
+    return "2";
+  else if constexpr (cute::is_same_v<T, cute::Int<3>> ||
+                     cute::is_same_v<T, cutlass::gemm::collective::StageCount<3>>)
+    return "3";
+  else if constexpr (cute::is_same_v<T, cute::Int<4>> ||
+                     cute::is_same_v<T, cutlass::gemm::collective::StageCount<4>>)
+    return "4";
+  else if constexpr (cute::is_same_v<T, cute::Int<5>> ||
+                     cute::is_same_v<T, cutlass::gemm::collective::StageCount<5>>)
+    return "5";
+  else
+    return "Unknown";
+}
+
 template <typename ShapeT>
 inline std::string shape_to_string() {
   return std::to_string(cute::size<0>(ShapeT{})) + "x" +

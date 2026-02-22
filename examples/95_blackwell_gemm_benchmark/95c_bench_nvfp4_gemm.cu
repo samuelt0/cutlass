@@ -30,7 +30,7 @@
  **************************************************************************************************/
 
 /*! \file
-    \brief Blackwell NVFP4 BlockScaled GEMM benchmark: 12 kernel configurations.
+    \brief Blackwell NVFP4 BlockScaled GEMM benchmark: 20 kernel configurations.
            Uses nv_float4_t<float_e2m1_t> inputs with scale factors, float output.
 
     Note: NVFP4 MMA tile K=256, so minimum problem K must be 256.
@@ -83,6 +83,7 @@ template <
   class Cluster_,
   class MainloopSched = cutlass::gemm::collective::KernelScheduleAuto,
   class EpiSched = cutlass::epilogue::collective::EpilogueScheduleAuto,
+  class StageCountType_ = void,
   class TileSchedulerTag = void
 >
 struct NVFP4GemmConfig {
@@ -107,6 +108,7 @@ struct NVFP4GemmConfig {
   using ClusterShape = Cluster_;
   using MainloopSchedule = MainloopSched;
   using EpilogueSchedule = EpiSched;
+  using StageCountTag = StageCountType_;
   using TileScheduler = TileSchedulerTag;
 
   using CollectiveEpilogue = typename cutlass::epilogue::collective::CollectiveBuilder<
@@ -119,13 +121,18 @@ struct NVFP4GemmConfig {
       EpiSched
     >::CollectiveOp;
 
+  using StageCountType = cute::conditional_t<
+      cute::is_same_v<StageCountType_, void>,
+      cutlass::gemm::collective::StageCountAutoCarveout<static_cast<int>(sizeof(typename CollectiveEpilogue::SharedStorage))>,
+      StageCountType_>;
+
   using CollectiveMainloop = typename cutlass::gemm::collective::CollectiveBuilder<
       cutlass::arch::Sm100, cutlass::arch::OpClassBlockScaledTensorOp,
       ElementA, LayoutATag, AlignmentA,
       ElementB, LayoutBTag, AlignmentB,
       ElementAccumulator,
       MmaTileShape, ClusterShape,
-      cutlass::gemm::collective::StageCountAutoCarveout<static_cast<int>(sizeof(typename CollectiveEpilogue::SharedStorage))>,
+      StageCountType,
       MainloopSched
     >::CollectiveOp;
 
@@ -145,7 +152,7 @@ struct NVFP4GemmConfig {
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-/// 12 NVFP4 configurations
+/// 20 NVFP4 configurations
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Auto schedule configs (CLC scheduler = void)
@@ -171,6 +178,7 @@ using NVFP4_2sm_256x128_c2x2_static = NVFP4GemmConfig<
     Shape<_256, _128, _256>, Shape<_2, _2, _1>,
     cutlass::gemm::collective::KernelScheduleAuto,
     cutlass::epilogue::collective::EpilogueScheduleAuto,
+    void,
     cutlass::gemm::StaticPersistentScheduler>;
 
 // Explicit NVF4 mainloop + TMA NVF4 epilogue
@@ -194,6 +202,58 @@ using NVFP4_2sm_256x128_c2x2_nosmem = NVFP4GemmConfig<
     Shape<_256, _128, _256>, Shape<_2, _2, _1>,
     cutlass::gemm::collective::KernelScheduleAuto,
     cutlass::epilogue::NoSmemWarpSpecialized2Sm>;
+
+// Manual stage count variants (1SM, explicit NVF4 mainloop + NoSmem epilogue)
+// Note: blockscaled builder requires StageCount<N>, not cute::Int<N>
+using NVFP4_1sm_128x128_c1x1_nvf4_s2 = NVFP4GemmConfig<
+    Shape<_128, _128, _256>, Shape<_1, _1, _1>,
+    cutlass::gemm::KernelTmaWarpSpecialized1SmNvf4Sm100,
+    cutlass::epilogue::NoSmemWarpSpecialized1Sm,
+    cutlass::gemm::collective::StageCount<2>>;
+
+using NVFP4_1sm_128x128_c1x1_nvf4_s3 = NVFP4GemmConfig<
+    Shape<_128, _128, _256>, Shape<_1, _1, _1>,
+    cutlass::gemm::KernelTmaWarpSpecialized1SmNvf4Sm100,
+    cutlass::epilogue::NoSmemWarpSpecialized1Sm,
+    cutlass::gemm::collective::StageCount<3>>;
+
+using NVFP4_1sm_128x128_c1x1_nvf4_s4 = NVFP4GemmConfig<
+    Shape<_128, _128, _256>, Shape<_1, _1, _1>,
+    cutlass::gemm::KernelTmaWarpSpecialized1SmNvf4Sm100,
+    cutlass::epilogue::NoSmemWarpSpecialized1Sm,
+    cutlass::gemm::collective::StageCount<4>>;
+
+// Manual stage count variants (2SM, explicit NVF4 mainloop + NoSmem epilogue)
+using NVFP4_2sm_256x128_c2x2_nvf4_s2 = NVFP4GemmConfig<
+    Shape<_256, _128, _256>, Shape<_2, _2, _1>,
+    cutlass::gemm::KernelTmaWarpSpecialized2SmNvf4Sm100,
+    cutlass::epilogue::NoSmemWarpSpecialized2Sm,
+    cutlass::gemm::collective::StageCount<2>>;
+
+using NVFP4_2sm_256x128_c2x2_nvf4_s3 = NVFP4GemmConfig<
+    Shape<_256, _128, _256>, Shape<_2, _2, _1>,
+    cutlass::gemm::KernelTmaWarpSpecialized2SmNvf4Sm100,
+    cutlass::epilogue::NoSmemWarpSpecialized2Sm,
+    cutlass::gemm::collective::StageCount<3>>;
+
+using NVFP4_2sm_256x128_c2x2_nvf4_s4 = NVFP4GemmConfig<
+    Shape<_256, _128, _256>, Shape<_2, _2, _1>,
+    cutlass::gemm::KernelTmaWarpSpecialized2SmNvf4Sm100,
+    cutlass::epilogue::NoSmemWarpSpecialized2Sm,
+    cutlass::gemm::collective::StageCount<4>>;
+
+// TMA epilogue with manual stage count
+using NVFP4_1sm_128x128_c1x1_tma_s3 = NVFP4GemmConfig<
+    Shape<_128, _128, _256>, Shape<_1, _1, _1>,
+    cutlass::gemm::KernelTmaWarpSpecialized1SmNvf4Sm100,
+    cutlass::epilogue::TmaWarpSpecialized1SmNvf4,
+    cutlass::gemm::collective::StageCount<3>>;
+
+using NVFP4_2sm_256x128_c2x2_tma_s3 = NVFP4GemmConfig<
+    Shape<_256, _128, _256>, Shape<_2, _2, _1>,
+    cutlass::gemm::KernelTmaWarpSpecialized2SmNvf4Sm100,
+    cutlass::epilogue::TmaWarpSpecialized2SmNvf4,
+    cutlass::gemm::collective::StageCount<3>>;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 /// Benchmark runner for NVFP4
@@ -252,7 +312,7 @@ struct NVFP4BenchRunner {
     result_template.cluster_shape = shape_to_string<typename Config::ClusterShape>();
     result_template.mainloop_schedule = mainloop_schedule_name<typename Config::MainloopSchedule>();
     result_template.epilogue_schedule = epilogue_schedule_name<typename Config::EpilogueSchedule>();
-    result_template.stage_count = "AutoCarveout";
+    result_template.stage_count = stage_count_name<typename Config::StageCountTag>();
     result_template.tile_scheduler = tile_scheduler_name<typename Config::TileScheduler>();
 
     for (const auto& shape : options.shapes) {
@@ -379,6 +439,15 @@ int main(int argc, char const **args) {
   NVFP4BenchRunner<NVFP4_2sm_256x128_c2x2_tma>{}.run("2sm_256x128_c2x2_tma", options, hw_info, results);
   NVFP4BenchRunner<NVFP4_1sm_128x128_c1x1_nosmem>{}.run("1sm_128x128_c1x1_nosmem", options, hw_info, results);
   NVFP4BenchRunner<NVFP4_2sm_256x128_c2x2_nosmem>{}.run("2sm_256x128_c2x2_nosmem", options, hw_info, results);
+  // Manual stage count variants
+  NVFP4BenchRunner<NVFP4_1sm_128x128_c1x1_nvf4_s2>{}.run("1sm_128x128_c1x1_nvf4_s2", options, hw_info, results);
+  NVFP4BenchRunner<NVFP4_1sm_128x128_c1x1_nvf4_s3>{}.run("1sm_128x128_c1x1_nvf4_s3", options, hw_info, results);
+  NVFP4BenchRunner<NVFP4_1sm_128x128_c1x1_nvf4_s4>{}.run("1sm_128x128_c1x1_nvf4_s4", options, hw_info, results);
+  NVFP4BenchRunner<NVFP4_2sm_256x128_c2x2_nvf4_s2>{}.run("2sm_256x128_c2x2_nvf4_s2", options, hw_info, results);
+  NVFP4BenchRunner<NVFP4_2sm_256x128_c2x2_nvf4_s3>{}.run("2sm_256x128_c2x2_nvf4_s3", options, hw_info, results);
+  NVFP4BenchRunner<NVFP4_2sm_256x128_c2x2_nvf4_s4>{}.run("2sm_256x128_c2x2_nvf4_s4", options, hw_info, results);
+  NVFP4BenchRunner<NVFP4_1sm_128x128_c1x1_tma_s3>{}.run("1sm_128x128_c1x1_tma_s3", options, hw_info, results);
+  NVFP4BenchRunner<NVFP4_2sm_256x128_c2x2_tma_s3>{}.run("2sm_256x128_c2x2_tma_s3", options, hw_info, results);
 
   if (!options.csv) {
     std::cout << "\nDone. " << results.size() << " benchmarks completed." << std::endl;

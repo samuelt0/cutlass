@@ -30,8 +30,8 @@
  **************************************************************************************************/
 
 /*! \file
-    \brief Blackwell FP16 GEMM benchmark: 12 kernel configurations varying tile size,
-           cluster shape, 1SM vs 2SM MMA, CLC vs static scheduling, and epilogue type.
+    \brief Blackwell FP16 GEMM benchmark: 23 kernel configurations varying tile size,
+           cluster shape, 1SM vs 2SM MMA, CLC vs static scheduling, epilogue type, and stage count.
 
     Usage:
       $ ./95a_bench_fp16_gemm --shapes=256x256x64,1024x1024x256,2048x2048x2048 --iterations=100 --csv
@@ -77,6 +77,7 @@ template <
   class Cluster_,
   class MainloopSched,
   class EpiSched,
+  class StageCountType_ = void,
   class TileSchedulerTag = void
 >
 struct FP16GemmConfig {
@@ -105,6 +106,7 @@ struct FP16GemmConfig {
   using ClusterShape = Cluster_;
   using MainloopSchedule = MainloopSched;
   using EpilogueSchedule = EpiSched;
+  using StageCountTag = StageCountType_;
   using TileScheduler = TileSchedulerTag;
 
   using FusionOp = cutlass::epilogue::fusion::LinearCombination<ElementD, ElementCompute, ElementC, ElementCompute>;
@@ -120,13 +122,18 @@ struct FP16GemmConfig {
       FusionOp
     >::CollectiveOp;
 
+  using StageCountType = cute::conditional_t<
+      cute::is_same_v<StageCountType_, void>,
+      cutlass::gemm::collective::StageCountAutoCarveout<static_cast<int>(sizeof(typename CollectiveEpilogue::SharedStorage))>,
+      StageCountType_>;
+
   using CollectiveMainloop = typename cutlass::gemm::collective::CollectiveBuilder<
       cutlass::arch::Sm100, cutlass::arch::OpClassTensorOp,
       ElementA, LayoutA, AlignmentA,
       ElementB, LayoutB, AlignmentB,
       ElementAccumulator,
       MmaTileShape, ClusterShape,
-      cutlass::gemm::collective::AutoCarveout<static_cast<int>(sizeof(typename CollectiveEpilogue::SharedStorage))>,
+      StageCountType,
       MainloopSched
     >::CollectiveOp;
 
@@ -141,7 +148,7 @@ struct FP16GemmConfig {
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-/// 12 FP16 configurations
+/// 23 FP16 configurations
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 // 1SM configs with NoSmem epilogue (CLC scheduler = void)
@@ -191,6 +198,7 @@ using Cfg_2sm_256x128_c2x2_static = FP16GemmConfig<
     Shape<_256, _128, _64>, Shape<_2, _2, _1>,
     cutlass::gemm::KernelTmaWarpSpecialized2SmSm100,
     cutlass::epilogue::NoSmemWarpSpecialized2Sm,
+    void,
     cutlass::gemm::StaticPersistentScheduler>;
 
 // Auto schedule
@@ -209,6 +217,66 @@ using Cfg_2sm_256x128_c2x2_tma = FP16GemmConfig<
     Shape<_256, _128, _64>, Shape<_2, _2, _1>,
     cutlass::gemm::KernelTmaWarpSpecialized2SmSm100,
     cutlass::epilogue::TmaWarpSpecialized2Sm>;
+
+// Manual stage count variants (1SM NoSmem)
+using Cfg_1sm_128x128_c1x1_clc_s2 = FP16GemmConfig<
+    Shape<_128, _128, _64>, Shape<_1, _1, _1>,
+    cutlass::gemm::KernelTmaWarpSpecialized1SmSm100,
+    cutlass::epilogue::NoSmemWarpSpecialized1Sm, Int<2>>;
+
+using Cfg_1sm_128x128_c1x1_clc_s3 = FP16GemmConfig<
+    Shape<_128, _128, _64>, Shape<_1, _1, _1>,
+    cutlass::gemm::KernelTmaWarpSpecialized1SmSm100,
+    cutlass::epilogue::NoSmemWarpSpecialized1Sm, Int<3>>;
+
+using Cfg_1sm_128x128_c1x1_clc_s4 = FP16GemmConfig<
+    Shape<_128, _128, _64>, Shape<_1, _1, _1>,
+    cutlass::gemm::KernelTmaWarpSpecialized1SmSm100,
+    cutlass::epilogue::NoSmemWarpSpecialized1Sm, Int<4>>;
+
+// Manual stage count variants (2SM NoSmem, 256x128)
+using Cfg_2sm_256x128_c2x2_clc_s2 = FP16GemmConfig<
+    Shape<_256, _128, _64>, Shape<_2, _2, _1>,
+    cutlass::gemm::KernelTmaWarpSpecialized2SmSm100,
+    cutlass::epilogue::NoSmemWarpSpecialized2Sm, Int<2>>;
+
+using Cfg_2sm_256x128_c2x2_clc_s3 = FP16GemmConfig<
+    Shape<_256, _128, _64>, Shape<_2, _2, _1>,
+    cutlass::gemm::KernelTmaWarpSpecialized2SmSm100,
+    cutlass::epilogue::NoSmemWarpSpecialized2Sm, Int<3>>;
+
+using Cfg_2sm_256x128_c2x2_clc_s4 = FP16GemmConfig<
+    Shape<_256, _128, _64>, Shape<_2, _2, _1>,
+    cutlass::gemm::KernelTmaWarpSpecialized2SmSm100,
+    cutlass::epilogue::NoSmemWarpSpecialized2Sm, Int<4>>;
+
+// Manual stage count variants (2SM NoSmem, 256x256)
+using Cfg_2sm_256x256_c2x2_clc_s2 = FP16GemmConfig<
+    Shape<_256, _256, _64>, Shape<_2, _2, _1>,
+    cutlass::gemm::KernelTmaWarpSpecialized2SmSm100,
+    cutlass::epilogue::NoSmemWarpSpecialized2Sm, Int<2>>;
+
+// TMA epilogue with manual stage count
+using Cfg_1sm_128x128_c1x1_tma_s3 = FP16GemmConfig<
+    Shape<_128, _128, _64>, Shape<_1, _1, _1>,
+    cutlass::gemm::KernelTmaWarpSpecialized1SmSm100,
+    cutlass::epilogue::TmaWarpSpecialized1Sm, Int<3>>;
+
+using Cfg_2sm_256x128_c2x2_tma_s3 = FP16GemmConfig<
+    Shape<_256, _128, _64>, Shape<_2, _2, _1>,
+    cutlass::gemm::KernelTmaWarpSpecialized2SmSm100,
+    cutlass::epilogue::TmaWarpSpecialized2Sm, Int<3>>;
+
+// Additional cluster shape variants
+using Cfg_2sm_256x256_c2x1_clc = FP16GemmConfig<
+    Shape<_256, _256, _64>, Shape<_2, _1, _1>,
+    cutlass::gemm::KernelTmaWarpSpecialized2SmSm100,
+    cutlass::epilogue::NoSmemWarpSpecialized2Sm>;
+
+using Cfg_1sm_128x256_c1x2_clc = FP16GemmConfig<
+    Shape<_128, _256, _64>, Shape<_1, _2, _1>,
+    cutlass::gemm::KernelTmaWarpSpecialized1SmSm100,
+    cutlass::epilogue::NoSmemWarpSpecialized1Sm>;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 /// Benchmark runner for a single FP16 config
@@ -254,7 +322,7 @@ struct FP16BenchRunner {
     result_template.cluster_shape = shape_to_string<typename Config::ClusterShape>();
     result_template.mainloop_schedule = mainloop_schedule_name<typename Config::MainloopSchedule>();
     result_template.epilogue_schedule = epilogue_schedule_name<typename Config::EpilogueSchedule>();
-    result_template.stage_count = "AutoCarveout";
+    result_template.stage_count = stage_count_name<typename Config::StageCountTag>();
     result_template.tile_scheduler = tile_scheduler_name<typename Config::TileScheduler>();
 
     for (const auto& shape : options.shapes) {
@@ -340,7 +408,7 @@ int main(int argc, char const **args) {
     std::cout << std::endl;
   }
 
-  // Run all 12 configurations
+  // Run all 23 configurations
   FP16BenchRunner<Cfg_1sm_128x128_c1x1_clc>{}.run("1sm_128x128_c1x1_clc", options, hw_info, results);
   FP16BenchRunner<Cfg_1sm_128x256_c1x1_clc>{}.run("1sm_128x256_c1x1_clc", options, hw_info, results);
   FP16BenchRunner<Cfg_1sm_64x128_c1x1_clc>{}.run("1sm_64x128_c1x1_clc", options, hw_info, results);
@@ -353,6 +421,19 @@ int main(int argc, char const **args) {
   FP16BenchRunner<Cfg_auto_c2x2_clc>{}.run("auto_c2x2_clc", options, hw_info, results);
   FP16BenchRunner<Cfg_1sm_128x128_c1x1_tma>{}.run("1sm_128x128_c1x1_tma", options, hw_info, results);
   FP16BenchRunner<Cfg_2sm_256x128_c2x2_tma>{}.run("2sm_256x128_c2x2_tma", options, hw_info, results);
+  // Manual stage count variants
+  FP16BenchRunner<Cfg_1sm_128x128_c1x1_clc_s2>{}.run("1sm_128x128_c1x1_clc_s2", options, hw_info, results);
+  FP16BenchRunner<Cfg_1sm_128x128_c1x1_clc_s3>{}.run("1sm_128x128_c1x1_clc_s3", options, hw_info, results);
+  FP16BenchRunner<Cfg_1sm_128x128_c1x1_clc_s4>{}.run("1sm_128x128_c1x1_clc_s4", options, hw_info, results);
+  FP16BenchRunner<Cfg_2sm_256x128_c2x2_clc_s2>{}.run("2sm_256x128_c2x2_clc_s2", options, hw_info, results);
+  FP16BenchRunner<Cfg_2sm_256x128_c2x2_clc_s3>{}.run("2sm_256x128_c2x2_clc_s3", options, hw_info, results);
+  FP16BenchRunner<Cfg_2sm_256x128_c2x2_clc_s4>{}.run("2sm_256x128_c2x2_clc_s4", options, hw_info, results);
+  FP16BenchRunner<Cfg_2sm_256x256_c2x2_clc_s2>{}.run("2sm_256x256_c2x2_clc_s2", options, hw_info, results);
+  FP16BenchRunner<Cfg_1sm_128x128_c1x1_tma_s3>{}.run("1sm_128x128_c1x1_tma_s3", options, hw_info, results);
+  FP16BenchRunner<Cfg_2sm_256x128_c2x2_tma_s3>{}.run("2sm_256x128_c2x2_tma_s3", options, hw_info, results);
+  // Additional cluster shape variants
+  FP16BenchRunner<Cfg_2sm_256x256_c2x1_clc>{}.run("2sm_256x256_c2x1_clc", options, hw_info, results);
+  FP16BenchRunner<Cfg_1sm_128x256_c1x2_clc>{}.run("1sm_128x256_c1x2_clc", options, hw_info, results);
 
   if (!options.csv) {
     std::cout << "\nDone. " << results.size() << " benchmarks completed." << std::endl;
