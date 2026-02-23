@@ -435,6 +435,17 @@ int main(int argc, char const **args) {
   FP16BenchRunner<Cfg_2sm_256x256_c2x1_clc>{}.run("2sm_256x256_c2x1_clc", options, hw_info, results);
   FP16BenchRunner<Cfg_1sm_128x256_c1x2_clc>{}.run("1sm_128x256_c1x2_clc", options, hw_info, results);
 
+  // Secondary shapes - run with representative configs only
+  options.shapes = {
+    {4608, 3072, 3072}, {4608, 9216, 3072}, {4608, 12288, 3072}, {4608, 3072, 12288},
+    {16384, 3072, 3072}, {16384, 9216, 3072}, {16384, 12288, 3072}, {16384, 3072, 12288},
+    {128, 3072, 3072}, {128, 9216, 3072}, {128, 12288, 3072}, {128, 3072, 12288}
+  };
+  FP16BenchRunner<Cfg_1sm_128x128_c1x1_clc>{}.run("1sm_128x128_c1x1_clc", options, hw_info, results);
+  FP16BenchRunner<Cfg_2sm_256x128_c2x2_clc>{}.run("2sm_256x128_c2x2_clc", options, hw_info, results);
+  FP16BenchRunner<Cfg_2sm_256x256_c2x2_clc>{}.run("2sm_256x256_c2x2_clc", options, hw_info, results);
+  FP16BenchRunner<Cfg_auto_c2x2_clc>{}.run("auto_c2x2_clc", options, hw_info, results);
+
   if (!options.csv) {
     std::cout << "\nDone. " << results.size() << " benchmarks completed." << std::endl;
   }

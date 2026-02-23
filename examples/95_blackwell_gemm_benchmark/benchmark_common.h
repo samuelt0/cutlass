@@ -160,8 +160,11 @@ struct BenchmarkOptions {
   int swizzle = 0;
 
   BenchmarkOptions() {
-    // Default shapes
-    shapes = {{256, 256, 64}, {1024, 1024, 256}, {2048, 2048, 2048}};
+    // Default shapes (primary tier - run with all configs)
+    shapes = {
+      {4096, 3072, 3072}, {4096, 9216, 3072}, {4096, 12288, 3072}, {4096, 3072, 12288},
+      {75600, 5120, 5120}, {75600, 15360, 5120}, {75600, 13824, 5120}, {75600, 5120, 13824}
+    };
   }
 
   void parse(int argc, char const **args) {

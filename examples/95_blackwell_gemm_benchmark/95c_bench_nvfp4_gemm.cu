@@ -401,7 +401,6 @@ int main(int argc, char const **args) {
 
   // NVFP4 requires K >= 256 (MMA tile K=256)
   BenchmarkOptions options;
-  options.shapes = {{256, 256, 256}, {1024, 1024, 256}, {2048, 2048, 2048}};
   options.parse(argc, args);
 
   if (options.help) {
@@ -448,6 +447,17 @@ int main(int argc, char const **args) {
   NVFP4BenchRunner<NVFP4_2sm_256x128_c2x2_nvf4_s4>{}.run("2sm_256x128_c2x2_nvf4_s4", options, hw_info, results);
   NVFP4BenchRunner<NVFP4_1sm_128x128_c1x1_tma_s3>{}.run("1sm_128x128_c1x1_tma_s3", options, hw_info, results);
   NVFP4BenchRunner<NVFP4_2sm_256x128_c2x2_tma_s3>{}.run("2sm_256x128_c2x2_tma_s3", options, hw_info, results);
+
+  // Secondary shapes - run with representative configs only
+  options.shapes = {
+    {4608, 3072, 3072}, {4608, 9216, 3072}, {4608, 12288, 3072}, {4608, 3072, 12288},
+    {16384, 3072, 3072}, {16384, 9216, 3072}, {16384, 12288, 3072}, {16384, 3072, 12288},
+    {128, 3072, 3072}, {128, 9216, 3072}, {128, 12288, 3072}, {128, 3072, 12288}
+  };
+  NVFP4BenchRunner<NVFP4_1sm_128x128_c1x1>{}.run("1sm_128x128_c1x1", options, hw_info, results);
+  NVFP4BenchRunner<NVFP4_2sm_256x128_c2x2>{}.run("2sm_256x128_c2x2", options, hw_info, results);
+  NVFP4BenchRunner<NVFP4_1sm_128x128_c1x1_nvf4>{}.run("1sm_128x128_c1x1_nvf4", options, hw_info, results);
+  NVFP4BenchRunner<NVFP4_2sm_256x128_c2x2_nvf4>{}.run("2sm_256x128_c2x2_nvf4", options, hw_info, results);
 
   if (!options.csv) {
     std::cout << "\nDone. " << results.size() << " benchmarks completed." << std::endl;
