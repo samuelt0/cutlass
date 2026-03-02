@@ -173,6 +173,7 @@ foreach(EXAMPLE
   93_blackwell_low_latency_gqa
   94_ada_fp8_blockwise
   95_blackwell_gemm_benchmark
+  96_blackwell_mma_swizzle_benchmark
   111_hopper_ssd
   112_blackwell_ssd
   )
